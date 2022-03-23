@@ -180,6 +180,7 @@ export function TopicList(): JSX.Element {
             {filteredTopics.map(({ item, positions }, idx) => (
               <StyledListItem
                 className={cx({ "Mui-hasMenu": menuTopic === idx })}
+                selected={menuTopic === idx}
                 divider
                 key={item.name}
                 secondaryAction={
