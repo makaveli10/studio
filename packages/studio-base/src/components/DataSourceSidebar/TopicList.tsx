@@ -95,7 +95,7 @@ const StyledListItem = muiStyled(ListItem)(({ theme }) => ({
       visibility: "hidden",
     },
     "&:hover, &.Mui-hasMenu": {
-      paddingRight: theme.spacing(10),
+      paddingRight: theme.spacing(11),
 
       ".MuiListItemSecondaryAction-root": {
         visibility: "visible",
@@ -183,9 +183,8 @@ export function TopicList(): JSX.Element {
                 divider
                 key={item.name}
                 secondaryAction={
-                  <Stack direction="row" gap={0.25}>
+                  <Stack direction="row" gap={0.5} alignItems="center">
                     <IconButton
-                      size="small"
                       title={copied ? "Copied!" : "Copy topic name"}
                       color={copied ? "success" : "inherit"}
                       onClick={() => {
@@ -204,7 +203,6 @@ export function TopicList(): JSX.Element {
                       )}
                     </IconButton>
                     <IconButton
-                      size="small"
                       id={`${idx}-more-button`}
                       aria-label="more"
                       aria-controls={open ? "topic-menu" : undefined}
@@ -212,7 +210,7 @@ export function TopicList(): JSX.Element {
                       aria-haspopup="true"
                       onClick={(event) => handleClick(event, idx)}
                     >
-                      <MoreVertIcon />
+                      <MoreVertIcon fontSize="small" />
                     </IconButton>
                   </Stack>
                 }
