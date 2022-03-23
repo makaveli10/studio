@@ -3,23 +3,10 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/
 
 import { useMemo } from "react";
-import { useMedia } from "react-use";
 
 import {
-  App,
-  ErrorBoundary,
-  MultiProvider,
   IDataSourceFactory,
-  ThemeProvider,
-  UserProfileLocalStorageProvider,
-  StudioToastProvider,
-  CssBaseline,
-  GlobalCss,
-  ConsoleApi,
-  ConsoleApiContext,
-  ConsoleApiRemoteLayoutStorageProvider,
   AppSetting,
-  useAppConfigurationValue,
   Ros1LocalBagDataSourceFactory,
   Ros2LocalBagDataSourceFactory,
   RosbridgeDataSourceFactory,
@@ -29,27 +16,25 @@ import {
   UlogLocalDataSourceFactory,
   McapLocalDataSourceFactory,
   SampleNuscenesDataSourceFactory,
-  AppConfiguration,
-  AppConfigurationContext,
+  IAppConfiguration,
   McapRemoteDataSourceFactory,
+  ActualApp,
+  ConsoleApi,
 } from "@foxglove/studio-base";
 
-import ConsoleApiCookieUserProvider from "./components/ConsoleApiCookieCurrentUserProvider";
-import LocalStorageLayoutStorageProvider from "./components/LocalStorageLayoutStorageProvider";
 import Ros1UnavailableDataSourceFactory from "./dataSources/Ros1UnavailableDataSourceFactory";
 import Ros2UnavailableDataSourceFactory from "./dataSources/Ros2UnavailableDataSourceFactory";
 import VelodyneUnavailableDataSourceFactory from "./dataSources/VelodyneUnavailableDataSourceFactory";
-import ExtensionLoaderProvider from "./providers/ExtensionLoaderProvider";
+import { useCurrentUser } from "./hooks/useCurrentUser";
+import { LocalStorageLayoutStorage } from "./services/LocalStorageLayoutStorage";
+import { NoopExtensionLoader } from "./services/NoopExtensionLoader";
 
-// useAppConfiguration requires the AppConfigurationContext which is setup in Root
-// AppWrapper is used to make a functional component so we can use the context
-function AppWrapper() {
-  const [enableExperimentalBagPlayer = false] = useAppConfigurationValue<boolean>(
-    AppSetting.EXPERIMENTAL_BAG_PLAYER,
-  );
-  const [enableExperimentalDataPlatformPlayer = false] = useAppConfigurationValue<boolean>(
-    AppSetting.EXPERIMENTAL_DATA_PLATFORM_PLAYER,
-  );
+export function Root({ appConfiguration }: { appConfiguration: IAppConfiguration }): JSX.Element {
+  const enableExperimentalBagPlayer: boolean =
+    (appConfiguration.get(AppSetting.EXPERIMENTAL_BAG_PLAYER) as boolean | undefined) ?? false;
+  const enableExperimentalDataPlatformPlayer: boolean =
+    (appConfiguration.get(AppSetting.EXPERIMENTAL_DATA_PLATFORM_PLAYER) as boolean | undefined) ??
+    false;
 
   const dataSources: IDataSourceFactory[] = useMemo(() => {
     const sources = [
@@ -73,43 +58,20 @@ function AppWrapper() {
     return sources;
   }, [enableExperimentalBagPlayer, enableExperimentalDataPlatformPlayer]);
 
-  return <App availableSources={dataSources} deepLinks={[window.location.href]} />;
-}
+  const layoutStorage = useMemo(() => new LocalStorageLayoutStorage(), []);
+  const extensionLoader = useMemo(() => new NoopExtensionLoader(), []);
+  const consoleApi = useMemo(() => new ConsoleApi(process.env.FOXGLOVE_API_URL!), []);
 
-function ColorSchemeThemeProvider({ children }: React.PropsWithChildren<unknown>): JSX.Element {
-  const [colorScheme = "dark"] = useAppConfigurationValue<string>(AppSetting.COLOR_SCHEME);
-  const systemSetting = useMedia("(prefers-color-scheme: dark)");
-  const isDark = colorScheme === "dark" || (colorScheme === "system" && systemSetting);
-  return <ThemeProvider isDark={isDark}>{children}</ThemeProvider>;
-}
-
-export function Root({ appConfiguration }: { appConfiguration: AppConfiguration }): JSX.Element {
-  const api = useMemo(() => new ConsoleApi(process.env.FOXGLOVE_API_URL!), []);
-
-  const providers = [
-    /* eslint-disable react/jsx-key */
-    <ConsoleApiContext.Provider value={api} />,
-    <ConsoleApiCookieUserProvider />,
-    <ConsoleApiRemoteLayoutStorageProvider />,
-    <StudioToastProvider />,
-    <LocalStorageLayoutStorageProvider />,
-    <UserProfileLocalStorageProvider />,
-    <ExtensionLoaderProvider />,
-    /* eslint-enable react/jsx-key */
-  ];
+  const currentUser = useCurrentUser(consoleApi);
 
   return (
-    <AppConfigurationContext.Provider value={appConfiguration}>
-      <ColorSchemeThemeProvider>
-        <GlobalCss />
-        <CssBaseline>
-          <ErrorBoundary>
-            <MultiProvider providers={providers}>
-              <AppWrapper />
-            </MultiProvider>
-          </ErrorBoundary>
-        </CssBaseline>
-      </ColorSchemeThemeProvider>
-    </AppConfigurationContext.Provider>
+    <ActualApp
+      dataSources={dataSources}
+      appConfiguration={appConfiguration}
+      layoutStorage={layoutStorage}
+      currentUser={currentUser}
+      consoleApi={consoleApi}
+      extensionLoader={extensionLoader}
+    />
   );
 }
