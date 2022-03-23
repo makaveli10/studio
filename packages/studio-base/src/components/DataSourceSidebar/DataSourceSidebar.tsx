@@ -3,7 +3,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/
 
 import { Add24Regular as AddIcon } from "@fluentui/react-icons";
-import { Box, IconButton, Tab, Tabs, styled as muiStyled, Chip, Badge } from "@mui/material";
+import { IconButton, Tab, Tabs, styled as muiStyled } from "@mui/material";
 import { useState, PropsWithChildren } from "react";
 
 import { AppSetting } from "@foxglove/studio-base/AppSetting";
