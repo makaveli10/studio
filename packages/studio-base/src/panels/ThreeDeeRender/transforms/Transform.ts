@@ -4,8 +4,8 @@
 
 import { mat4, vec3, quat, ReadonlyMat4, ReadonlyVec3, ReadonlyQuat } from "gl-matrix";
 
-import { Pose } from "./geometry";
 import {
+  Pose,
   approxEq,
   getRotationNoScaling,
   mat4Identity,

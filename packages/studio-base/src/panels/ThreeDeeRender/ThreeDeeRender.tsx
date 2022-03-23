@@ -3,8 +3,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/
 
 import css from "@emotion/css";
-import React, { useRef } from "react";
-import { useLayoutEffect, useEffect, useState, useMemo } from "react";
+import React, { useRef, useLayoutEffect, useEffect, useState, useMemo } from "react";
 
 import Logger from "@foxglove/log";
 import { PanelExtensionContext, RenderState, Topic, MessageEvent } from "@foxglove/studio";
