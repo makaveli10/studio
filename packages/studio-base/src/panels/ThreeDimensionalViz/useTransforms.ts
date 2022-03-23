@@ -58,10 +58,10 @@ function consumeSingleTfs(tfs: MessageEvent<TF>[], transforms: TransformTree): v
 }
 
 function consumeFoxgloveFrameTransform(
-  tfs: MessageEvent<FoxgloveFrameTransform>[],
+  msgEvents: MessageEvent<FoxgloveFrameTransform>[],
   transformTree: TransformTree,
 ): void {
-  for (const { message } of tfs) {
+  for (const { message } of msgEvents) {
     const { translation, rotation } = message.transform;
     const tf: TF = {
       header: {
