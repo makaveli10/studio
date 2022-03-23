@@ -187,7 +187,7 @@ export function TopicList(): JSX.Element {
                     <IconButton
                       size="small"
                       title={copied ? "Copied!" : "Copy topic name"}
-                      color={copied ? "success" : "primary"}
+                      color={copied ? "success" : "inherit"}
                       onClick={() => {
                         copyToClipboard(item.name);
 
