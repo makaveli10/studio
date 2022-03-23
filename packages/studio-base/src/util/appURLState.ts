@@ -10,6 +10,7 @@ export type AppURLState = {
   ds?: string;
   dsParams?: Record<string, string>;
   layoutId?: LayoutID;
+  layoutURL?: URL;
   time?: Time;
 };
 
@@ -28,6 +29,10 @@ export function encodeAppURLState(url: URL, urlState: AppURLState): URL {
 
   if (urlState.layoutId) {
     newURL.searchParams.set("layoutId", urlState.layoutId);
+  }
+
+  if (urlState.layoutURL) {
+    newURL.searchParams.set("layoutURL", urlState.layoutURL.href);
   }
 
   if (urlState.time) {
@@ -55,7 +60,8 @@ export function encodeAppURLState(url: URL, urlState: AppURLState): URL {
  */
 export function parseAppURLState(url: URL): AppURLState | undefined {
   const ds = url.searchParams.get("ds");
-  if (!ds) {
+  const layoutURL = url.searchParams.get("layoutURL");
+  if (!ds && !layoutURL) {
     return undefined;
   }
 
@@ -76,8 +82,9 @@ export function parseAppURLState(url: URL): AppURLState | undefined {
 
   return {
     layoutId: layoutId ? (layoutId as LayoutID) : undefined,
+    layoutURL: layoutURL ? new URL(layoutURL, window.location.href) : undefined,
     time,
-    ds,
+    ds: ds ? ds : undefined,
     dsParams,
   };
 }
