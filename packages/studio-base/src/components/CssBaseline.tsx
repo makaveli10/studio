@@ -21,15 +21,15 @@ const useStyles = makeStyles((theme) => ({
     },
     div: {
       "::-webkit-scrollbar": {
-        width: "4px",
-        height: "4px",
+        width: 4,
+        height: 4,
       },
       "::-webkit-scrollbar-track": {
         background: "transparent",
       },
       "::-webkit-scrollbar-thumb": {
         background: theme.palette.blackTranslucent40,
-        borderRadius: "2px",
+        borderRadius: 2,
       },
     },
     "p:not(.MuiTypography-root)": {
