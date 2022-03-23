@@ -6,6 +6,7 @@ import css from "@emotion/css";
 import React, { useRef, useLayoutEffect, useEffect, useState, useMemo } from "react";
 
 import Logger from "@foxglove/log";
+import { toNanoSec } from "@foxglove/rostime";
 import { PanelExtensionContext, RenderState, Topic, MessageEvent } from "@foxglove/studio";
 
 import { DebugGui } from "./DebugGui";
@@ -20,7 +21,6 @@ import {
   MARKER_ARRAY_DATATYPES,
   TF,
   Marker,
-  rosTimeToNanoSec,
 } from "./ros";
 
 const SHOW_STATS = true;
@@ -159,13 +159,8 @@ export function ThreeDeeRender({ context }: { context: PanelExtensionContext }):
     //
     // The render handler could be invoked as often as 60hz during playback if fields are changing often.
     context.onRender = (renderState: RenderState, done) => {
-      // This is a hack to extract the current time from the render state, until
-      // <https://github.com/foxglove/studio/issues/1248> is implemented
-      if (renderState.currentFrame) {
-        const latest = getCurrentTime(renderState.currentFrame);
-        if (latest != undefined) {
-          setCurrentTime(latest);
-        }
+      if (renderState.currentTime) {
+        setCurrentTime(toNanoSec(renderState.currentTime));
       }
 
       // render functions receive a _done_ callback. You MUST call this callback to indicate your panel has finished rendering.
@@ -186,14 +181,9 @@ export function ThreeDeeRender({ context }: { context: PanelExtensionContext }):
       setMessages(renderState.currentFrame);
     };
 
-    // After adding a render handler, you must indicate which fields from RenderState will trigger updates.
-    // If you do not watch any fields then your panel will never render since the panel context will assume you do not want any updates.
-
-    // Tell the panel context that we care about any update to the _topic_ field of RenderState
+    context.watch("currentTime");
+    context.watch("colorScheme");
     context.watch("topics");
-
-    // Tell the panel context we want messages for the current frame for topics we've subscribed to
-    // This corresponds to the _currentFrame_ field of render state.
     context.watch("currentFrame");
   }, [context]);
 
@@ -302,20 +292,4 @@ export function ThreeDeeRender({ context }: { context: PanelExtensionContext }):
       </RendererContext.Provider>
     </React.Fragment>
   );
-}
-
-function getCurrentTime(currentFrame: readonly MessageEvent<unknown>[]): bigint | undefined {
-  if (currentFrame.length === 0) {
-    return undefined;
-  }
-
-  let maxTime = rosTimeToNanoSec(currentFrame[0]!.receiveTime);
-  for (let i = 1; i < currentFrame.length; i++) {
-    const message = currentFrame[i]!;
-    const curTime = rosTimeToNanoSec(message.receiveTime);
-    if (curTime > maxTime) {
-      maxTime = curTime;
-    }
-  }
-  return maxTime;
 }
