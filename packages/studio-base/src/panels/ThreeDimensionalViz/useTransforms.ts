@@ -13,7 +13,9 @@
 
 import { useMemo, useRef } from "react";
 
+import { fromNanoSec } from "@foxglove/rostime";
 import {
+  FOXGLOVE_FRAME_TRANSFORM_DATATYPE,
   TF_DATATYPES,
   TRANSFORM_STAMPED_DATATYPES,
 } from "@foxglove/studio-base/panels/ThreeDimensionalViz/constants";
@@ -30,6 +32,16 @@ import { Frame } from "./useFrame";
 
 type TfMessage = { transforms: TF[] };
 
+type FoxgloveFrameTransform = {
+  timestamp: bigint;
+  parent_frame_id: string;
+  child_frame_id: string;
+  transform: {
+    translation: [number, number, number];
+    rotation: [number, number, number, number];
+  };
+};
+
 function consumeTfs(tfs: MessageEvent<TfMessage>[], transforms: TransformTree): void {
   for (const { message } of tfs) {
     const parsedMessage = message;
@@ -42,6 +54,29 @@ function consumeTfs(tfs: MessageEvent<TfMessage>[], transforms: TransformTree): 
 function consumeSingleTfs(tfs: MessageEvent<TF>[], transforms: TransformTree): void {
   for (const { message } of tfs) {
     transforms.addTransformMessage(message);
+  }
+}
+
+function consumeFoxgloveFrameTransform(
+  tfs: MessageEvent<FoxgloveFrameTransform>[],
+  transformTree: TransformTree,
+): void {
+  for (const { message } of tfs) {
+    const { translation, rotation } = message.transform;
+    const tf: TF = {
+      header: {
+        seq: 0,
+        frame_id: message.parent_frame_id,
+        stamp: fromNanoSec(message.timestamp),
+      },
+      child_frame_id: message.child_frame_id,
+      transform: {
+        translation: { x: translation[0], y: translation[1], z: translation[2] },
+        rotation: { x: rotation[0], y: rotation[1], z: rotation[2], w: rotation[3] },
+      },
+    };
+
+    transformTree.addTransformMessage(tf);
   }
 }
 
@@ -121,6 +156,8 @@ function useTransforms(args: Args): IImmutableTransformTree {
       } else if (TRANSFORM_STAMPED_DATATYPES.includes(datatype)) {
         consumeSingleTfs(msgs as MessageEvent<TF>[], transforms);
         updated = true;
+      } else if (datatype === FOXGLOVE_FRAME_TRANSFORM_DATATYPE) {
+        consumeFoxgloveFrameTransform(msgs as MessageEvent<FoxgloveFrameTransform>[], transforms);
       }
     }
 
