@@ -27,7 +27,7 @@ function DataSourceInfo(): JSX.Element {
   const duration = startTime && endTime ? subtractTimes(endTime, startTime) : undefined;
 
   return (
-    <Stack gap={2}>
+    <Stack gap={2} paddingX={2} paddingBottom={2}>
       <Stack direction="row" alignItems="center">
         <Stack gap={0.25} flexGrow={1} zeroMinWidth>
           <Typography variant="overline" color="text.secondary">

@@ -3,158 +3,68 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/
 
 import { Add24Regular as AddIcon } from "@fluentui/react-icons";
-import CheckIcon from "@mui/icons-material/Check";
-import ClearIcon from "@mui/icons-material/Clear";
-import ContentPasteIcon from "@mui/icons-material/ContentPaste";
-import ErrorIcon from "@mui/icons-material/ErrorOutline";
-import SearchIcon from "@mui/icons-material/Search";
-import WarningIcon from "@mui/icons-material/WarningAmber";
-import {
-  AppBar,
-  Box,
-  Divider,
-  IconButton,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  styled as muiStyled,
-  TextField,
-  Typography,
-  TypographyProps,
-} from "@mui/material";
-import { Fzf, FzfResultItem } from "fzf";
-import { useCallback, useContext, useMemo, useState } from "react";
-import { useCopyToClipboard } from "react-use";
+import { Box, IconButton, Tab, Tabs, styled as muiStyled, Chip, Badge } from "@mui/material";
+import { useState, PropsWithChildren } from "react";
 
-import { Topic } from "@foxglove/studio";
 import { AppSetting } from "@foxglove/studio-base/AppSetting";
-import EyeClosedIcon from "@foxglove/studio-base/components/EyeClosedIcon";
-import EyeOpenIcon from "@foxglove/studio-base/components/EyeOpenIcon";
 import {
   MessagePipelineContext,
   useMessagePipeline,
 } from "@foxglove/studio-base/components/MessagePipeline";
-import NotificationModal from "@foxglove/studio-base/components/NotificationModal";
 import { SidebarContent } from "@foxglove/studio-base/components/SidebarContent";
 import Stack from "@foxglove/studio-base/components/Stack";
-import ModalContext from "@foxglove/studio-base/context/ModalContext";
 import { useAppConfigurationValue } from "@foxglove/studio-base/hooks/useAppConfigurationValue";
-import { PlayerProblem } from "@foxglove/studio-base/players/types";
-import { fonts } from "@foxglove/studio-base/util/sharedStyleConstants";
+import { PlayerPresence } from "@foxglove/studio-base/players/types";
 
 import { DataSourceInfo } from "./DataSourceInfo";
+import { ProblemsList } from "./ProblemsList";
+import { TopicList } from "./TopicList";
 import helpContent from "./help.md";
 
 type Props = {
   onSelectDataSourceAction: () => void;
 };
 
-function itemToFzfResult(item: Topic): FzfResultItem<Topic> {
-  return {
-    item,
-    score: 0,
-    positions: new Set<number>(),
-    start: 0,
-    end: 0,
-  };
-}
-
-const HighlightChars = ({
-  str,
-  indices,
-  color,
-  offset = 0,
-}: {
-  str: string;
-  indices: Set<number>;
-  color?: TypographyProps["color"];
-  offset?: number;
-}) => {
-  const chars = str.split("");
-
-  const nodes = chars.map((char, i) => {
-    if (indices.has(i + offset)) {
-      return (
-        <Typography component="b" key={i} variant="inherit" color={color ?? "info.main"}>
-          {char}
-        </Typography>
-      );
-    }
-    return char;
-  });
-
-  return <>{nodes}</>;
-};
-
-const StyledAppBar = muiStyled(AppBar)(({ theme }) => ({
-  top: 0,
-  zIndex: theme.zIndex.appBar - 1,
-  borderBottom: `1px solid ${theme.palette.divider}`,
-  boxShadow: `0 -1px 0 ${theme.palette.divider}`,
-  display: "flex",
-  flexDirection: "row",
-  padding: theme.spacing(1),
-  gap: theme.spacing(1),
-  alignItems: "center",
+const StyledTab = muiStyled(Tab)(({ theme }) => ({
+  minWidth: "auto",
+  minHeight: "auto",
+  padding: theme.spacing(1.5, 2),
 }));
 
-const StyledListItem = muiStyled(ListItem)({
-  "@media (pointer: fine)": {
-    "& .MuiListItemSecondaryAction-root": {
-      visibility: "hidden",
-    },
-    "&:hover": {
-      "& .MuiListItemSecondaryAction-root": {
-        visibility: "visible",
-      },
-    },
-  },
+const StyledTabs = muiStyled(Tabs)({
+  minHeight: "auto",
 });
+
+interface TabPanelProps {
+  index: number;
+  value: number;
+}
+
+const TabPanel = (props: PropsWithChildren<TabPanelProps>): JSX.Element => {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`tabpanel-${index}`}
+      aria-labelledby={`tab-${index}`}
+      {...other}
+    >
+      {value === index && <>{children}</>}
+    </div>
+  );
+};
+
+const selectPlayerPresence = ({ playerState }: MessagePipelineContext) => playerState.presence;
+const selectPlayerProblems = ({ playerState }: MessagePipelineContext) => playerState.problems;
 
 export default function DataSourceSidebar(props: Props): JSX.Element {
   const { onSelectDataSourceAction } = props;
   const [enableOpenDialog] = useAppConfigurationValue(AppSetting.OPEN_DIALOG);
-  const [showDatatype, setShowDatatype] = useState<boolean>(true);
-  const [filterText, setFilterText] = useState<string>("");
-  const [clipboard, copyToClipboard] = useCopyToClipboard();
-  const [copied, setCopied] = useState<boolean>(false);
-
-  const modalHost = useContext(ModalContext);
-
-  const playerProblems =
-    useMessagePipeline((ctx: MessagePipelineContext) => ctx.playerState.problems) ?? [];
-  const topics = useMessagePipeline((ctx) => ctx.playerState.activeData?.topics ?? []);
-
-  const filteredTopics: FzfResultItem<Topic>[] = useMemo(
-    () =>
-      filterText
-        ? new Fzf(topics, {
-            fuzzy: filterText.length > 2 ? "v2" : false,
-            sort: true,
-            selector: (topic) => `${topic.name}|${topic.datatype}`,
-          }).find(filterText)
-        : topics.map((t) => itemToFzfResult(t)),
-    [filterText, topics],
-  );
-
-  const showProblemModal = useCallback(
-    (problem: PlayerProblem) => {
-      const remove = modalHost.addModalElement(
-        <NotificationModal
-          notification={{
-            message: problem.message,
-            subText: problem.tip,
-            details: problem.error,
-            severity: problem.severity,
-          }}
-          onRequestClose={() => remove()}
-        />,
-      );
-    },
-    [modalHost],
-  );
+  const playerPresence = useMessagePipeline(selectPlayerPresence);
+  const playerProblems = useMessagePipeline(selectPlayerProblems) ?? [];
+  const [activeTab, setActiveTab] = useState<number>(0);
 
   return (
     <SidebarContent
@@ -175,120 +85,25 @@ export default function DataSourceSidebar(props: Props): JSX.Element {
       ].filter(Boolean)}
     >
       <Stack fullHeight>
-        <Box paddingX={2} paddingBottom={2}>
-          <DataSourceInfo />
-        </Box>
+        <DataSourceInfo />
 
-        <Stack flex={1}>
-          <StyledAppBar position="sticky" color="default" elevation={0}>
-            <Box flex="auto">
-              <TextField
-                disabled={filteredTopics.length === 0}
-                onChange={(event) => setFilterText(event.target.value)}
-                value={filterText}
-                variant="filled"
-                fullWidth
-                placeholder="Filter by topic or datatype"
-                InputProps={{
-                  startAdornment: <SearchIcon fontSize="small" />,
-                  endAdornment: filterText && (
-                    <IconButton
-                      size="small"
-                      title="Clear search"
-                      onClick={() => setFilterText("")}
-                      edge="end"
-                    >
-                      <ClearIcon fontSize="small" />
-                    </IconButton>
-                  ),
-                }}
-              />
-            </Box>
-            <IconButton
-              disabled={filteredTopics.length === 0}
-              title={`${showDatatype ? "Show" : "Hide"} datatype`}
-              onClick={() => setShowDatatype(!showDatatype)}
+        {playerPresence !== PlayerPresence.NOT_PRESENT && (
+          <Stack flex={1}>
+            <StyledTabs
+              value={activeTab}
+              onChange={(_ev, newValue: number) => setActiveTab(newValue)}
+              textColor="inherit"
             >
-              {showDatatype ? <EyeOpenIcon /> : <EyeClosedIcon color="disabled" />}
-            </IconButton>
-          </StyledAppBar>
-          {filteredTopics.length > 0 ? (
-            <List dense disablePadding>
-              {filteredTopics.map(({ item, positions }) => (
-                <StyledListItem
-                  divider
-                  key={item.name}
-                  secondaryAction={
-                    <IconButton
-                      title={copied ? "Copied!" : "Copy topic name"}
-                      color={copied ? "success" : undefined}
-                      onClick={() => {
-                        copyToClipboard(item.name);
-
-                        if (!clipboard.error) {
-                          setCopied(true);
-                          setTimeout(() => setCopied(false), 1000);
-                        }
-                      }}
-                    >
-                      {copied ? (
-                        <CheckIcon fontSize="small" />
-                      ) : (
-                        <ContentPasteIcon fontSize="small" />
-                      )}
-                    </IconButton>
-                  }
-                >
-                  <ListItemText
-                    primary={<HighlightChars str={item.name} indices={positions} />}
-                    secondary={
-                      showDatatype && (
-                        <HighlightChars
-                          str={item.datatype}
-                          indices={positions}
-                          offset={item.name.length + 1}
-                        />
-                      )
-                    }
-                    secondaryTypographyProps={{
-                      fontFamily: fonts.MONOSPACE,
-                    }}
-                  />
-                </StyledListItem>
-              ))}
-            </List>
-          ) : (
-            <Stack flex="auto" padding={2}>
-              Haz empty state
-            </Stack>
-          )}
-        </Stack>
-
-        {playerProblems.length > 0 && (
-          <>
-            <Divider />
-            <List disablePadding>
-              {playerProblems.map((problem, idx) => (
-                <ListItem disablePadding key={`${idx}`}>
-                  <ListItemButton onClick={() => showProblemModal(problem)}>
-                    <ListItemIcon>
-                      {problem.severity === "error" ? (
-                        <ErrorIcon color="error" />
-                      ) : (
-                        <WarningIcon color="warning" />
-                      )}
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={problem.message}
-                      primaryTypographyProps={{
-                        color: problem.severity === "error" ? "error.main" : "warning.main",
-                      }}
-                    />
-                  </ListItemButton>
-                </ListItem>
-              ))}
-            </List>
-          </>
+              <StyledTab disableRipple label="Topics" value={0} />
+              {playerProblems.length > 0 && <StyledTab disableRipple label="Problems" value={1} />}
+            </StyledTabs>
+            <TabPanel value={activeTab} index={0}>
+              <TopicList />
+            </TabPanel>
+            <TabPanel value={activeTab} index={1}>
+              <ProblemsList problems={playerProblems} />
+            </TabPanel>
+          </Stack>
         )}
       </Stack>
     </SidebarContent>
