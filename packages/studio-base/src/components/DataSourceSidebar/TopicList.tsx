@@ -3,7 +3,6 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/
 
 import CheckIcon from "@mui/icons-material/Check";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ClearIcon from "@mui/icons-material/Clear";
 import ContentPasteIcon from "@mui/icons-material/ContentPaste";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
@@ -96,6 +95,8 @@ const StyledListItem = muiStyled(ListItem)(({ theme }) => ({
       visibility: "hidden",
     },
     "&:hover, &.Mui-hasMenu": {
+      paddingRight: theme.spacing(10),
+
       ".MuiListItemSecondaryAction-root": {
         visibility: "visible",
       },
@@ -182,8 +183,9 @@ export function TopicList(): JSX.Element {
                 divider
                 key={item.name}
                 secondaryAction={
-                  <Stack direction="row" gap={1}>
+                  <Stack direction="row" gap={0.25}>
                     <IconButton
+                      size="small"
                       title={copied ? "Copied!" : "Copy topic name"}
                       color={copied ? "success" : "primary"}
                       onClick={() => {
@@ -202,6 +204,7 @@ export function TopicList(): JSX.Element {
                       )}
                     </IconButton>
                     <IconButton
+                      size="small"
                       id={`${idx}-more-button`}
                       aria-label="more"
                       aria-controls={open ? "topic-menu" : undefined}
@@ -216,7 +219,7 @@ export function TopicList(): JSX.Element {
               >
                 <ListItemText
                   primary={<HighlightChars str={item.name} indices={positions} />}
-                  primaryTypographyProps={{ variant: "body2" }}
+                  primaryTypographyProps={{ variant: "body2", noWrap: true, title: item.name }}
                   secondary={
                     showDatatype && (
                       <HighlightChars
@@ -226,7 +229,11 @@ export function TopicList(): JSX.Element {
                       />
                     )
                   }
-                  secondaryTypographyProps={{ fontFamily: fonts.MONOSPACE }}
+                  secondaryTypographyProps={{
+                    fontFamily: fonts.MONOSPACE,
+                    noWrap: true,
+                    title: item.datatype,
+                  }}
                 />
               </StyledListItem>
             ))}
@@ -238,12 +245,12 @@ export function TopicList(): JSX.Element {
         )
       ) : (
         [...new Array(10).fill({})].map((i) => (
-          <StyledListItem divider key={i}>
+          <ListItem divider key={i}>
             <ListItemText
               primary={<Skeleton animation={false} width="20%" />}
               secondary={<Skeleton animation="wave" width="55%" />}
             />
-          </StyledListItem>
+          </ListItem>
         ))
       )}
       <Menu
