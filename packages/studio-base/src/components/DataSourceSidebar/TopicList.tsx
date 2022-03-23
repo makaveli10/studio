@@ -3,13 +3,17 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/
 
 import CheckIcon from "@mui/icons-material/Check";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ClearIcon from "@mui/icons-material/Clear";
 import ContentPasteIcon from "@mui/icons-material/ContentPaste";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
 import SearchIcon from "@mui/icons-material/Search";
 import {
   AppBar,
   Box,
   IconButton,
+  Menu,
+  MenuItem,
   List,
   ListItem,
   ListItemText,
@@ -19,6 +23,7 @@ import {
   Typography,
   TypographyProps,
 } from "@mui/material";
+import cx from "classnames";
 import { Fzf, FzfResultItem } from "fzf";
 import { useMemo, useState } from "react";
 import { useCopyToClipboard } from "react-use";
@@ -90,7 +95,7 @@ const StyledListItem = muiStyled(ListItem)(({ theme }) => ({
     ".MuiListItemSecondaryAction-root": {
       visibility: "hidden",
     },
-    "&:hover": {
+    "&:hover, &.Mui-hasMenu": {
       ".MuiListItemSecondaryAction-root": {
         visibility: "visible",
       },
@@ -105,6 +110,19 @@ export function TopicList(): JSX.Element {
   const [filterText, setFilterText] = useState<string>("");
   const [clipboard, copyToClipboard] = useCopyToClipboard();
   const [copied, setCopied] = useState<boolean>(false);
+  const [anchorEl, setAnchorEl] = useState<undefined | HTMLElement>(undefined);
+  const [menuTopic, setMenuTopic] = useState<number | undefined>(undefined);
+  const open = Boolean(anchorEl);
+
+  const handleClick = (event: React.MouseEvent<HTMLElement>, value: number) => {
+    setMenuTopic(value);
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setMenuTopic(undefined);
+    setAnchorEl(undefined);
+  };
 
   const playerPresence = useMessagePipeline(selectPlayerPresence);
   const topics = useMessagePipeline((ctx) => ctx.playerState.activeData?.topics ?? []);
@@ -158,30 +176,42 @@ export function TopicList(): JSX.Element {
       {playerPresence === PlayerPresence.PRESENT ? (
         filteredTopics.length > 0 ? (
           <List dense={showDatatype} disablePadding>
-            {filteredTopics.map(({ item, positions }) => (
+            {filteredTopics.map(({ item, positions }, idx) => (
               <StyledListItem
-                onMouseOut={() => setCopied(false)}
+                className={cx({ "Mui-hasMenu": menuTopic === idx })}
                 divider
                 key={item.name}
                 secondaryAction={
-                  <IconButton
-                    title={copied ? "Copied!" : "Copy topic name"}
-                    color={copied ? "success" : "primary"}
-                    onClick={() => {
-                      copyToClipboard(item.name);
+                  <Stack direction="row" gap={1}>
+                    <IconButton
+                      title={copied ? "Copied!" : "Copy topic name"}
+                      color={copied ? "success" : "primary"}
+                      onClick={() => {
+                        copyToClipboard(item.name);
 
-                      if (!clipboard.error) {
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 1000);
-                      }
-                    }}
-                  >
-                    {copied ? (
-                      <CheckIcon fontSize="small" />
-                    ) : (
-                      <ContentPasteIcon fontSize="small" />
-                    )}
-                  </IconButton>
+                        if (!clipboard.error) {
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 1000);
+                        }
+                      }}
+                    >
+                      {copied ? (
+                        <CheckIcon fontSize="small" />
+                      ) : (
+                        <ContentPasteIcon fontSize="small" />
+                      )}
+                    </IconButton>
+                    <IconButton
+                      id={`${idx}-more-button`}
+                      aria-label="more"
+                      aria-controls={open ? "topic-menu" : undefined}
+                      aria-expanded={open ? "true" : undefined}
+                      aria-haspopup="true"
+                      onClick={(event) => handleClick(event, idx)}
+                    >
+                      <MoreVertIcon />
+                    </IconButton>
+                  </Stack>
                 }
               >
                 <ListItemText
@@ -216,6 +246,22 @@ export function TopicList(): JSX.Element {
           </StyledListItem>
         ))
       )}
+      <Menu
+        id="topic-menu"
+        MenuListProps={{
+          "aria-labelledby": `${menuTopic}-more-button`,
+        }}
+        anchorEl={anchorEl}
+        open={open}
+        onClose={handleClose}
+        PaperProps={{
+          sx: { minWidth: 180 },
+        }}
+      >
+        <MenuItem onClick={handleClose}>
+          <Box flex="auto">Open in…</Box>
+        </MenuItem>
+      </Menu>
     </>
   );
 }
