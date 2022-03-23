@@ -3,12 +3,11 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/
 
 import { Add24Regular as AddIcon } from "@fluentui/react-icons";
+import CheckIcon from "@mui/icons-material/Check";
 import ClearIcon from "@mui/icons-material/Clear";
+import ContentPasteIcon from "@mui/icons-material/ContentPaste";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
-import FilterListIcon from "@mui/icons-material/FilterList";
 import SearchIcon from "@mui/icons-material/Search";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import WarningIcon from "@mui/icons-material/WarningAmber";
 import {
   AppBar,
@@ -20,18 +19,19 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Menu,
-  MenuItem,
   styled as muiStyled,
   TextField,
   Typography,
   TypographyProps,
 } from "@mui/material";
 import { Fzf, FzfResultItem } from "fzf";
-import { MouseEvent, useCallback, useContext, useMemo, useState } from "react";
+import { useCallback, useContext, useMemo, useState } from "react";
+import { useCopyToClipboard } from "react-use";
 
 import { Topic } from "@foxglove/studio";
 import { AppSetting } from "@foxglove/studio-base/AppSetting";
+import EyeClosedIcon from "@foxglove/studio-base/components/EyeClosedIcon";
+import EyeOpenIcon from "@foxglove/studio-base/components/EyeOpenIcon";
 import {
   MessagePipelineContext,
   useMessagePipeline,
@@ -93,6 +93,11 @@ const StyledAppBar = muiStyled(AppBar)(({ theme }) => ({
   zIndex: theme.zIndex.appBar - 1,
   borderBottom: `1px solid ${theme.palette.divider}`,
   boxShadow: `0 -1px 0 ${theme.palette.divider}`,
+  display: "flex",
+  flexDirection: "row",
+  padding: theme.spacing(1),
+  gap: theme.spacing(1),
+  alignItems: "center",
 }));
 
 const StyledListItem = muiStyled(ListItem)({
@@ -112,16 +117,10 @@ export default function DataSourceSidebar(props: Props): JSX.Element {
   const { onSelectDataSourceAction } = props;
   const [enableOpenDialog] = useAppConfigurationValue(AppSetting.OPEN_DIALOG);
   const [showDatatype, setShowDatatype] = useState<boolean>(true);
-  const [filterAnchorEl, setFilterAnchorEl] = useState<undefined | HTMLElement>(undefined);
   const [filterText, setFilterText] = useState<string>("");
-  const filterOpen = Boolean(filterAnchorEl);
+  const [clipboard, copyToClipboard] = useCopyToClipboard();
+  const [copied, setCopied] = useState<boolean>(false);
 
-  const handleFilterClick = (event: MouseEvent<HTMLButtonElement>) => {
-    setFilterAnchorEl(event.currentTarget);
-  };
-  const handleFilterClose = () => {
-    setFilterAnchorEl(undefined);
-  };
   const modalHost = useContext(ModalContext);
 
   const playerProblems =
@@ -182,62 +181,64 @@ export default function DataSourceSidebar(props: Props): JSX.Element {
 
         <Stack flex={1}>
           <StyledAppBar position="sticky" color="default" elevation={0}>
-            <Stack direction="row" padding={1} gap={1} alignItems="center">
-              <Box flex="auto">
-                <TextField
-                  onChange={(event) => setFilterText(event.target.value)}
-                  value={filterText}
-                  variant="filled"
-                  fullWidth
-                  placeholder="Filter by topic or datatype"
-                  InputProps={{
-                    startAdornment: <SearchIcon fontSize="small" />,
-                    endAdornment: filterText && (
-                      <IconButton
-                        size="small"
-                        title="Clear search"
-                        onClick={() => setFilterText("")}
-                        edge="end"
-                      >
-                        <ClearIcon fontSize="small" />
-                      </IconButton>
-                    ),
-                  }}
-                />
-              </Box>
-              <IconButton title="Toggle datatype" onClick={() => setShowDatatype(!showDatatype)}>
-                {showDatatype ? (
-                  <VisibilityIcon fontSize="small" />
-                ) : (
-                  <VisibilityOffIcon fontSize="small" />
-                )}
-              </IconButton>
-              <IconButton
-                id="basic-button"
-                aria-controls={filterOpen ? "filter-menu" : undefined}
-                aria-haspopup="true"
-                aria-expanded={filterOpen ? "true" : undefined}
-                onClick={handleFilterClick}
-              >
-                <FilterListIcon fontSize="small" />
-              </IconButton>
-              <Menu
-                id="filter-menu"
-                anchorEl={filterAnchorEl}
-                open={filterOpen}
-                onClose={handleFilterClose}
-                MenuListProps={{
-                  "aria-labelledby": "filter-button",
+            <Box flex="auto">
+              <TextField
+                disabled={filteredTopics.length === 0}
+                onChange={(event) => setFilterText(event.target.value)}
+                value={filterText}
+                variant="filled"
+                fullWidth
+                placeholder="Filter by topic or datatype"
+                InputProps={{
+                  startAdornment: <SearchIcon fontSize="small" />,
+                  endAdornment: filterText && (
+                    <IconButton
+                      size="small"
+                      title="Clear search"
+                      onClick={() => setFilterText("")}
+                      edge="end"
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  ),
                 }}
-              >
-                <MenuItem onClick={handleFilterClose}>Sort Alphabetically</MenuItem>
-              </Menu>
-            </Stack>
+              />
+            </Box>
+            <IconButton
+              disabled={filteredTopics.length === 0}
+              title={`${showDatatype ? "Show" : "Hide"} datatype`}
+              onClick={() => setShowDatatype(!showDatatype)}
+            >
+              {showDatatype ? <EyeOpenIcon /> : <EyeClosedIcon color="disabled" />}
+            </IconButton>
           </StyledAppBar>
           {filteredTopics.length > 0 ? (
             <List dense disablePadding>
               {filteredTopics.map(({ item, positions }) => (
-                <StyledListItem divider key={item.name}>
+                <StyledListItem
+                  divider
+                  key={item.name}
+                  secondaryAction={
+                    <IconButton
+                      title={copied ? "Copied!" : "Copy topic name"}
+                      color={copied ? "success" : undefined}
+                      onClick={() => {
+                        copyToClipboard(item.name);
+
+                        if (!clipboard.error) {
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 1000);
+                        }
+                      }}
+                    >
+                      {copied ? (
+                        <CheckIcon fontSize="small" />
+                      ) : (
+                        <ContentPasteIcon fontSize="small" />
+                      )}
+                    </IconButton>
+                  }
+                >
                   <ListItemText
                     primary={<HighlightChars str={item.name} indices={positions} />}
                     secondary={
@@ -249,7 +250,6 @@ export default function DataSourceSidebar(props: Props): JSX.Element {
                         />
                       )
                     }
-                    primaryTypographyProps={{ variant: "body1" }}
                     secondaryTypographyProps={{
                       fontFamily: fonts.MONOSPACE,
                     }}

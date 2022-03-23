@@ -123,6 +123,9 @@ export default function muiComponents(theme: Theme): ThemeOptions["components"] 
           "&.Mui-focused": {
             backgroundColor: theme.palette.action.focus,
           },
+          "&.Mui-disabled": {
+            opacity: 0.5,
+          },
         },
       },
     },
