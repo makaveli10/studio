@@ -25,7 +25,7 @@ class McapLocalDataSourceFactory implements IDataSourceFactory {
       return;
     }
 
-    const mcapProvider = new McapDataProvider({ file });
+    const mcapProvider = new McapDataProvider({ source: { type: "file", file } });
     const messageCacheProvider = new MemoryCacheDataProvider(mcapProvider, {
       unlimitedCache: args.unlimitedMemoryCache,
     });

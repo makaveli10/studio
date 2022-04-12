@@ -11,8 +11,8 @@ import { RosNode } from "@foxglove/ros2";
 import { RosMsgDefinition } from "@foxglove/rosmsg";
 import { definitions as commonDefs } from "@foxglove/rosmsg-msgs-common";
 import { definitions as foxgloveDefs } from "@foxglove/rosmsg-msgs-foxglove";
-import { Time, fromMillis } from "@foxglove/rostime";
-import { Reliability } from "@foxglove/rtps";
+import { Time, fromMillis, toSec } from "@foxglove/rostime";
+import { Durability, Reliability } from "@foxglove/rtps";
 import { ParameterValue } from "@foxglove/studio";
 import OsContextSingleton from "@foxglove/studio-base/OsContextSingleton";
 import PlayerProblemManager from "@foxglove/studio-base/players/PlayerProblemManager";
@@ -64,8 +64,7 @@ export default class Ros2Player implements Player {
   // private _services = new Map<string, Set<string>>(); // A map of service names to service provider IDs that provide each service.
   // private _parameters = new Map<string, ParameterValue>(); // rosparams
   private _start?: Time; // The time at which we started playing.
-  // private _clockTime?: Time; // The most recent published `/clock` time, if available
-  // private _clockReceived: Time = { sec: 0, nsec: 0 }; // The local time when `_clockTime` was last received
+  private _clockTime?: Time; // The most recent published `/clock` time, if available
   private _requestedSubscriptions: SubscribePayload[] = []; // Requested subscriptions by setSubscriptions()
   private _parsedMessages: MessageEvent<unknown>[] = []; // Queue of messages that we'll send in next _emitState() call.
   private _messageOrder: TimestampMethod = "receiveTime";
@@ -80,7 +79,7 @@ export default class Ros2Player implements Player {
     log.info(`initializing Ros2Player (domainId=${domainId})`);
     this._domainId = domainId;
     this._metricsCollector = metricsCollector;
-    this._start = fromMillis(Date.now());
+    this._start = this._getCurrentTime();
     this._metricsCollector.playerConstructed();
 
     // The ros1ToRos2Type() hack can be removed when @foxglove/rosmsg-msgs-* packages are updated to
@@ -314,7 +313,6 @@ export default class Ros2Player implements Player {
         subscribedTopics: this._subscribedTopics,
         // services: this._services,
         // parameters: this._parameters,
-        parsedMessageDefinitionsByTopic: {},
       },
     });
   });
@@ -344,7 +342,7 @@ export default class Ros2Player implements Player {
       return;
     }
 
-    // Subscribe to additional topics used by Ros1Player itself
+    // Subscribe to additional topics used by Ros2Player itself
     this._addInternalSubscriptions(subscriptions);
 
     // Filter down to topics we can actually subscribe to
@@ -363,15 +361,13 @@ export default class Ros2Player implements Player {
       }
       const dataType = availableTopic.datatype;
 
-      // Find the first reliable publisher for this topic to mimic its QoS profile
-      const rosEndpoint = publishedTopics
-        .get(topicName)
-        ?.find((pub) => pub.reliability.kind === Reliability.Reliable);
+      // Find the first publisher for this topic to mimic its QoS history settings
+      const rosEndpoint = publishedTopics.get(topicName)?.[0];
       if (!rosEndpoint) {
         this._problems.addProblem(`subscription:${topicName}`, {
           severity: "warn",
-          message: `No reliable publisher for "${topicName}"`,
-          tip: `Best-effort subscriptions are not supported yet`,
+          message: `No publisher for "${topicName}"`,
+          tip: `Publish "${topicName}"`,
         });
         continue;
       } else {
@@ -391,12 +387,30 @@ export default class Ros2Player implements Player {
         });
       }
 
+      // Pick the best but lowest common denominator QoS profile for this topic
+      const topicEndpoints = publishedTopics.get(topicName) ?? [];
+      const reliableCount = topicEndpoints.reduce(
+        (sum, pub) => sum + (pub.reliability.kind === Reliability.Reliable ? 1 : 0),
+        0,
+      );
+      const transientLocalCount = topicEndpoints.reduce(
+        (sum, pub) => sum + (pub.durability === Durability.TransientLocal ? 1 : 0),
+        0,
+      );
+      const endpointCount = topicEndpoints.length;
+      const durability =
+        transientLocalCount === endpointCount ? Durability.TransientLocal : Durability.Volatile;
+      const reliability = {
+        kind: reliableCount === endpointCount ? Reliability.Reliable : Reliability.BestEffort,
+        maxBlockingTime: rosEndpoint.reliability.maxBlockingTime,
+      };
+
       const subscription = this._rosNode.subscribe({
         topic: topicName,
         dataType,
-        durability: rosEndpoint.durability,
+        durability,
         history: rosEndpoint.history,
-        reliability: rosEndpoint.reliability,
+        reliability,
         msgDefinition,
       });
 
@@ -437,15 +451,15 @@ export default class Ros2Player implements Player {
       return;
     }
 
-    // const receiveTime = fromMillis(Date.now());
-    const receiveTime = timestamp;
+    const receiveTime = this._getCurrentTime();
+    const publishTime = timestamp;
 
     if (external && !this._hasReceivedMessage) {
       this._hasReceivedMessage = true;
       this._metricsCollector.recordTimeToFirstMsgs();
     }
 
-    const msg: MessageEvent<unknown> = { topic, receiveTime, message, sizeInBytes };
+    const msg: MessageEvent<unknown> = { topic, receiveTime, publishTime, message, sizeInBytes };
     this._parsedMessages.push(msg);
     this._handleInternalMessage(msg);
 
@@ -555,25 +569,27 @@ export default class Ros2Player implements Player {
     if (subscriptions.find((sub) => sub.topic === "/clock") == undefined) {
       subscriptions.unshift({
         topic: "/clock",
-        requester: { type: "other", name: "Ros1Player" },
+        requester: { type: "other", name: "Ros2Player" },
       });
     }
   }
 
-  private _handleInternalMessage(_msg: MessageEvent<unknown>): void {
-    // const maybeClockMsg = msg.message as { clock?: Time };
-    // if (msg.topic === "/clock" && maybeClockMsg.clock && !isNaN(maybeClockMsg.clock?.sec)) {
-    //   const time = maybeClockMsg.clock;
-    //   const seconds = toSec(maybeClockMsg.clock);
-    //   if (isNaN(seconds)) {
-    //     return;
-    //   }
-    //   if (this._clockTime == undefined) {
-    //     this._start = time;
-    //   }
-    //   this._clockTime = time;
-    //   this._clockReceived = msg.receiveTime;
-    // }
+  private _handleInternalMessage(msg: MessageEvent<unknown>): void {
+    const maybeClockMsg = msg.message as { clock?: Time };
+    if (msg.topic === "/clock" && maybeClockMsg.clock && !isNaN(maybeClockMsg.clock.sec)) {
+      const time = maybeClockMsg.clock;
+      const seconds = toSec(maybeClockMsg.clock);
+      if (isNaN(seconds)) {
+        return;
+      }
+
+      if (this._clockTime == undefined) {
+        this._start = time;
+      }
+
+      this._clockTime = time;
+      (msg as { receiveTime: Time }).receiveTime = this._getCurrentTime();
+    }
   }
 
   private _updateConnectionGraph(_rosNode: RosNode): void {
@@ -608,14 +624,7 @@ export default class Ros2Player implements Player {
   }
 
   private _getCurrentTime(): Time {
-    const now = fromMillis(Date.now());
-    return now;
-    // if (this._clockTime == undefined) {
-    //   return now;
-    // }
-
-    // const delta = subtractTimes(now, this._clockReceived);
-    // return addTimes(this._clockTime, delta);
+    return this._clockTime ?? fromMillis(Date.now());
   }
 }
 

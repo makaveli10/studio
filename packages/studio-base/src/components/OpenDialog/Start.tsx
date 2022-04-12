@@ -25,7 +25,7 @@ const HELP_ITEMS: IButtonProps[] = [
     id: "docs",
     href: "https://foxglove.dev/docs?utm_source=studio&utm_medium=open-dialog",
     target: "_blank",
-    children: "Browse the documentation",
+    children: "Browse docs",
   },
   {
     id: "github",
@@ -35,13 +35,33 @@ const HELP_ITEMS: IButtonProps[] = [
   },
 ];
 
+const CONTACT_ITEMS = [
+  {
+    id: "feedback",
+    href: "https://foxglove.dev/contact/",
+    target: "_blank",
+    children: "Give feedback",
+  },
+  {
+    id: "demo",
+    href: "https://foxglove.dev/demo/",
+    target: "_blank",
+    children: "Schedule a demo",
+  },
+];
+
 export type IStartProps = {
-  supportedFileExtensions?: string[];
+  supportedLocalFileExtensions?: string[];
+  supportedRemoteFileExtensions?: string[];
   onSelectView: (newValue: OpenDialogViews) => void;
 };
 
 export default function Start(props: IStartProps): JSX.Element {
-  const { supportedFileExtensions = [], onSelectView } = props;
+  const {
+    supportedLocalFileExtensions = [],
+    supportedRemoteFileExtensions = [],
+    onSelectView,
+  } = props;
   const theme = useTheme();
   const { recentSources, selectRecent } = usePlayerSelection();
 
@@ -58,6 +78,7 @@ export default function Start(props: IStartProps): JSX.Element {
       rootHovered: { backgroundColor: theme.palette.neutralLighterAlt },
       rootPressed: { backgroundColor: theme.palette.neutralLighter },
       flexContainer: { alignItems: "center" },
+      description: { whiteSpace: "pre-line" },
       descriptionHovered: { color: theme.semanticColors.bodySubtext },
       icon: {
         marginRight: theme.spacing.m,
@@ -74,31 +95,33 @@ export default function Start(props: IStartProps): JSX.Element {
     [theme],
   );
 
-  const supportedLocalFiles = useMemo(
-    () => Array.from(new Set(supportedFileExtensions)).join(", "),
-    [supportedFileExtensions],
-  );
-
-  const startItems: IButtonProps[] = useMemo(
-    () => [
+  const startItems: IButtonProps[] = useMemo(() => {
+    const formatter = new Intl.ListFormat("en-US", { style: "long" });
+    const supportedLocalFiles = formatter.format(
+      Array.from(new Set(supportedLocalFileExtensions)).sort(),
+    );
+    const supportedRemoteFiles = formatter.format(
+      Array.from(new Set(supportedRemoteFileExtensions)).sort(),
+    );
+    return [
       {
         id: "open-local-file",
         children: "Open local file",
-        secondaryText: `Supports ${supportedLocalFiles} files`,
+        secondaryText: `Supports ${supportedLocalFiles} files.`,
         iconProps: { iconName: "OpenFile" },
         onClick: () => onSelectView("file"),
       },
       {
         id: "open-url",
         children: "Open file from URL",
-        secondaryText: "Load a file via HTTP(S)",
+        secondaryText: `Load a file via HTTP(S).\nSupports ${supportedRemoteFiles} files.`,
         iconProps: { iconName: "FileASPX" },
         onClick: () => onSelectView("remote"),
       },
       {
         id: "open-connection",
         children: "Open connection",
-        secondaryText: "Connect to a live robot or server",
+        secondaryText: "Connect to a live robot or server.",
         iconProps: { iconName: "Flow" },
         onClick: () => onSelectView("connection"),
       },
@@ -109,9 +132,8 @@ export default function Start(props: IStartProps): JSX.Element {
         iconProps: { iconName: "BookStar" },
         onClick: () => onSelectView("demo"),
       },
-    ],
-    [onSelectView, supportedLocalFiles],
-  );
+    ];
+  }, [onSelectView, supportedLocalFileExtensions, supportedRemoteFileExtensions]);
 
   const recentItems: IButtonProps[] = useMemo(() => {
     return recentSources.map((recent) => {
@@ -174,6 +196,7 @@ export default function Start(props: IStartProps): JSX.Element {
         <Stack flexGrow={1} minWidth={0} spacing={2.5}>
           {recentItems.length > 0 && <ActionList title="Recent" items={recentItems} />}
           <ActionList title="Help" items={HELP_ITEMS} />
+          <ActionList title="Contact" items={CONTACT_ITEMS} />
         </Stack>
       </Stack>
       <Checkbox

@@ -245,11 +245,13 @@ function main() {
       "script-src": `'self' 'unsafe-inline' 'unsafe-eval'`,
       "worker-src": `'self' blob:`,
       "style-src": "'self' 'unsafe-inline'",
-      "connect-src": "'self' ws: wss: http: https: x-foxglove-ros-package:",
+      "connect-src": "'self' ws: wss: http: https: package:",
       "font-src": "'self' data:",
-      "img-src":
-        "'self' data: https: x-foxglove-ros-package: x-foxglove-ros-package-converted-tiff:",
+      "img-src": "'self' data: https: package: x-foxglove-converted-tiff:",
     };
+    const cspHeader = Object.entries(contentSecurityPolicy)
+      .map(([key, val]) => `${key} ${val}`)
+      .join("; ");
 
     // Set default http headers
     session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -258,11 +260,7 @@ function main() {
 
       // don't set CSP for internal URLs
       if (!["chrome-extension:", "devtools:", "data:"].includes(url.protocol)) {
-        responseHeaders["Content-Security-Policy"] = [
-          Object.entries(contentSecurityPolicy)
-            .map(([key, val]) => `${key} ${val}`)
-            .join("; "),
-        ];
+        responseHeaders["Content-Security-Policy"] = [cspHeader];
       }
 
       callback({ responseHeaders });
